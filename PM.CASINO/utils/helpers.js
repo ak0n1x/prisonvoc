@@ -5,9 +5,15 @@ function createGameEmbed(title, color, fields) {
         .setTitle(title)
         .setColor(color);
 
-    fields.forEach(({ name, value, inline = false }) => {
-        embed.addField(name, value, inline);
-    });
+    if (Array.isArray(fields) && fields.length > 0) {
+        embed.addFields(
+            fields.map(({ name, value, inline = false }) => ({
+                name,
+                value,
+                inline
+            }))
+        );
+    }
 
     return embed;
 }
