@@ -1,4 +1,5 @@
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, PermissionsBitField } = require('discord.js');
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
@@ -18,6 +19,31 @@ client.commands = new Collection();
 client.prefixCommands = new Collection();
 client.slashCommands = new Collection();
 client.prefix = ';';
+
+const app = express();
+const webPort = Number(process.env.WEB_PORT) || 3000;
+const webRoot = path.join(__dirname, 'web');
+
+app.use(express.static(webRoot));
+
+app.get('/api/status', (req, res) => {
+    res.json({
+        ready: client.isReady(),
+        username: client.user ? client.user.tag : null,
+        prefix: client.prefix,
+        slashCommands: client.slashCommands.size
+    });
+});
+
+app.get('/api/config', (req, res) => {
+    res.json({
+        clientId: process.env.DISCORD_CLIENT_ID || null
+    });
+});
+
+app.listen(webPort, () => {
+    console.log(`🌐 Site web actif sur le port ${webPort}`);
+});
 
 // ==================== Charger les prefix commands ====================
 const prefixCommandsPath = path.join(__dirname, 'commands', 'prefix');
@@ -55,10 +81,12 @@ if (fs.existsSync(slashCommandsPath)) {
 }
 
 // ==================== Charger les événements ====================
-const eventsPath = path.join(__dirname, 'events');
+const eventsPath = fs.existsSync(path.join(__dirname, 'events'))
+    ? path.join(__dirname, 'events')
+    : path.join(__dirname, 'event');
 if (fs.existsSync(eventsPath)) {
     const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-    
+
     for (const file of eventFiles) {
         const filePath = path.join(eventsPath, file);
         const event = require(filePath);
@@ -101,7 +129,7 @@ client.on('interactionCreate', async (interaction) => {
     if (!command) return;
 
     // Vérifier les permissions admin
-    if (!interaction.member.permissions.has('Administrator')) {
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
         await interaction.reply({ 
             content: '❌ Seuls les administrateurs peuvent utiliser cette commande!',
             ephemeral: true 
@@ -121,7 +149,7 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-client.once('clientReady', async () => {
+client.once('ready', async () => {
     console.log(`✅ Bot connecté: ${client.user.tag}`);
     
     try {
@@ -148,4 +176,9 @@ function startVoiceMonitor(client) {
     }, 30000);
 }
 
-client.login(process.env.DISCORD_BOT_TOKEN);
+const botToken = process.env.DISCORD_BOT_TOKEN;
+if (botToken) {
+    client.login(botToken);
+} else {
+    console.warn('⚠️ DISCORD_BOT_TOKEN manquant. Le site web fonctionne, mais le bot est désactivé.');
+}
