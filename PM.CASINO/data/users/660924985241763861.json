@@ -1,0 +1,60 @@
+{
+    "userId": "660924985241763861",
+    "createdAt": "2025-12-19T01:48:20.369Z",
+    "profile": {
+        "balance": 739,
+        "level": 1,
+        "exp": 0,
+        "title": "Nouveau Joueur",
+        "registered": true
+    },
+    "stats": {
+        "totalGames": 6,
+        "totalWins": 3,
+        "totalLosses": 3,
+        "totalGains": 1600,
+        "totalLossesAmount": 0,
+        "winRate": "50.0",
+        "favoriteGame": null
+    },
+    "games": {
+        "blackjack": {
+            "played": 6,
+            "wins": 3,
+            "earnings": 1600
+        },
+        "slots": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        },
+        "dice": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        },
+        "roulette": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        },
+        "poker": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        }
+    },
+    "voice": {
+        "totalMinutes": 0,
+        "totalEarnings": 0,
+        "lastSession": null,
+        "currentSessionStart": null
+    },
+    "inventory": {},
+    "achievements": [],
+    "dailyCheckIn": "2025-12-19T18:39:23.540Z",
+    "vipStatus": {
+        "isVip": false,
+        "vipUntil": null
+    }
+}

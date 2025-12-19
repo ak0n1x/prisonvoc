@@ -1,0 +1,60 @@
+{
+    "userId": "1330130207536975888",
+    "createdAt": "2025-12-18T22:28:51.277Z",
+    "profile": {
+        "balance": 900,
+        "level": 1,
+        "exp": 1000000000000000,
+        "title": "gros fdp de merde",
+        "registered": true
+    },
+    "stats": {
+        "totalGames": 0,
+        "totalWins": 0,
+        "totalLosses": 0,
+        "totalGains": 0,
+        "totalLossesAmount": 0,
+        "winRate": 0,
+        "favoriteGame": null
+    },
+    "games": {
+        "blackjack": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        },
+        "slots": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        },
+        "dice": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        },
+        "roulette": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        },
+        "poker": {
+            "played": 0,
+            "wins": 0,
+            "earnings": 0
+        }
+    },
+    "voice": {
+        "totalMinutes": 0,
+        "totalEarnings": 0,
+        "lastSession": null,
+        "currentSessionStart": null
+    },
+    "inventory": {},
+    "achievements": [],
+    "dailyCheckIn": null,
+    "vipStatus": {
+        "isVip": false,
+        "vipUntil": null
+    }
+}
