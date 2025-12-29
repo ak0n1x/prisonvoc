@@ -4,6 +4,7 @@ require('dotenv').config(); // ← IMPORTANT : Charger .env en premier
 const { Client, GatewayIntentBits } = require("discord.js");
 const path = require("path");
 const fs = require("fs");
+const banStore = require("./Permissions_Systemes/banStore");
 
 // -------------------
 // CONFIGURATION
@@ -12,8 +13,25 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
   ]
+});
+
+banStore.onExpire(async (userId, ban) => {
+  if (!ban?.guildId) return;
+
+  try {
+    const guild =
+      client.guilds.cache.get(ban.guildId) ||
+      (await client.guilds.fetch(ban.guildId).catch(() => null));
+
+    if (guild) {
+      await guild.members.unban(userId).catch(() => {});
+    }
+  } catch (err) {
+    console.error("Erreur unban automatique:", err.message);
+  }
 });
 
 const prefix = "+";
@@ -60,6 +78,25 @@ for (const dir of COMMAND_DIRS) {
 // -------------------
 client.once("ready", () => {
   console.log(`✅ Connecté en tant que ${client.user.tag}`);
+  banStore.scheduleExistingBans();
+});
+
+client.on("guildMemberAdd", async (member) => {
+  try {
+    const wetEntry = banStore.getWetEntry(member.id);
+    const activeBan = banStore.getActiveBan(member.id);
+
+    if (wetEntry) {
+      await member.ban({ reason: "Wet list - rebannissement automatique" }).catch(() => {});
+      return;
+    }
+
+    if (activeBan) {
+      await member.ban({ reason: activeBan.reason || "Ban actif" }).catch(() => {});
+    }
+  } catch (err) {
+    console.error("Erreur guildMemberAdd:", err.message);
+  }
 });
 
 client.on("messageCreate", async (message) => {

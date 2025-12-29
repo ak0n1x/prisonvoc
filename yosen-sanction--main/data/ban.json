@@ -1,0 +1,58 @@
+{
+  "records": {
+    "1452849741716127946": {
+      "history": [
+        {
+          "userId": "1452849741716127946",
+          "reason": "+ban 1452849741716127946",
+          "type": "classique",
+          "duration": "Permanent",
+          "endsAt": null,
+          "createdAt": "2025-12-28T23:51:16.958Z",
+          "issuedBy": "1414876407997272126",
+          "issuedLevel": 0,
+          "stage": "permanent"
+        }
+      ],
+      "active": {
+        "userId": "1452849741716127946",
+        "reason": "+ban 1452849741716127946",
+        "type": "classique",
+        "duration": "Permanent",
+        "endsAt": null,
+        "createdAt": "2025-12-28T23:51:16.958Z",
+        "issuedBy": "1414876407997272126",
+        "issuedLevel": 0,
+        "stage": "permanent"
+      },
+      "totalSanctions": 1
+    },
+    "1025818106502860961": {
+      "history": [
+        {
+          "userId": "1025818106502860961",
+          "reason": "+ban 1025818106502860961",
+          "type": "classique",
+          "duration": "Permanent",
+          "endsAt": null,
+          "createdAt": "2025-12-29T00:12:54.768Z",
+          "issuedBy": "1414876407997272126",
+          "issuedLevel": 0,
+          "stage": "permanent"
+        }
+      ],
+      "active": {
+        "userId": "1025818106502860961",
+        "reason": "+ban 1025818106502860961",
+        "type": "classique",
+        "duration": "Permanent",
+        "endsAt": null,
+        "createdAt": "2025-12-29T00:12:54.768Z",
+        "issuedBy": "1414876407997272126",
+        "issuedLevel": 0,
+        "stage": "permanent"
+      },
+      "totalSanctions": 1
+    }
+  }
+}
