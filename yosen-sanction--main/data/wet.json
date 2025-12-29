@@ -1,0 +1,98 @@
+{
+  "1025818106502860961": {
+    "date": "29/12/2025 00:04:08",
+    "time": {
+      "channelId": "1453087643087667210",
+      "guildId": "1452847773027274864",
+      "id": "1454973212856291509",
+      "createdTimestamp": 1766963046040,
+      "type": 0,
+      "system": false,
+      "content": "+wet 1025818106502860961",
+      "authorId": "1437491111835996394",
+      "pinned": false,
+      "tts": false,
+      "nonce": "1454973211836940288",
+      "embeds": [],
+      "components": [],
+      "attachments": [],
+      "stickers": [],
+      "position": null,
+      "roleSubscriptionData": null,
+      "resolved": null,
+      "editedTimestamp": null,
+      "mentions": {
+        "everyone": false,
+        "users": [],
+        "roles": [],
+        "crosspostedChannels": [],
+        "repliedUser": null,
+        "members": [],
+        "channels": []
+      },
+      "webhookId": null,
+      "groupActivityApplicationId": null,
+      "applicationId": null,
+      "activity": null,
+      "flags": 0,
+      "reference": null,
+      "interactionMetadata": null,
+      "interaction": null,
+      "poll": null,
+      "messageSnapshots": [],
+      "call": null,
+      "cleanContent": "+wet 1025818106502860961"
+    },
+    "by": "1437491111835996394"
+  },
+  "<@1025818106502860961>": {
+    "date": "29/12/2025 00:04:27",
+    "time": {
+      "channelId": "1453087643087667210",
+      "guildId": "1452847773027274864",
+      "id": "1454973292665639194",
+      "createdTimestamp": 1766963065068,
+      "type": 0,
+      "system": false,
+      "content": "+wet <@1025818106502860961>",
+      "authorId": "1437491111835996394",
+      "pinned": false,
+      "tts": false,
+      "nonce": "1454973291235115008",
+      "embeds": [],
+      "components": [],
+      "attachments": [],
+      "stickers": [],
+      "position": null,
+      "roleSubscriptionData": null,
+      "resolved": null,
+      "editedTimestamp": null,
+      "mentions": {
+        "everyone": false,
+        "users": [
+          "1025818106502860961"
+        ],
+        "roles": [],
+        "crosspostedChannels": [],
+        "repliedUser": null,
+        "members": [
+          "1025818106502860961"
+        ],
+        "channels": []
+      },
+      "webhookId": null,
+      "groupActivityApplicationId": null,
+      "applicationId": null,
+      "activity": null,
+      "flags": 0,
+      "reference": null,
+      "interactionMetadata": null,
+      "interaction": null,
+      "poll": null,
+      "messageSnapshots": [],
+      "call": null,
+      "cleanContent": "+wet @DESTINY WANO(FEAR ARC)"
+    },
+    "by": "1437491111835996394"
+  }
+}
