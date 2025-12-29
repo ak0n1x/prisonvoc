@@ -1,20 +1,8 @@
-const fs = require("fs");
-const path = require("path");
 const { EmbedBuilder } = require("discord.js");
 const getUserPerm = require("../GetUserPerm");
 const PERMS = require("../permission");
 const checkPerm = require("../CheckPerm");
-
-const permsPath = path.join(__dirname, "../perms.json");
-
-function readPerms() {
-  try {
-    if (!fs.existsSync(permsPath)) return {};
-    return JSON.parse(fs.readFileSync(permsPath, "utf8"));
-  } catch {
-    return {};
-  }
-}
+const { readPerms } = require("../utils/permsStore");
 
 module.exports = {
   name: "syslist",
@@ -28,7 +16,7 @@ module.exports = {
     const list = Object.keys(data).filter((id) => data[id] === "SYS");
 
     const usersList = list.length
-      ? list.map((id, i) => `${i + 1}. ${id}`).join("\n")
+      ? list.map((id, i) => `${i + 1}. <@${id}> (${id})`).join("\n")
       : "Aucun utilisateur";
 
     const embed = new EmbedBuilder()
