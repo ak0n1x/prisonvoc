@@ -1,23 +1,25 @@
-const fs = require("fs");
-const path = require("path");
 const { EmbedBuilder } = require("discord.js");
 const getUserPerm = require("../GetUserPerm");
 const PERMS = require("../permission");
 const checkPerm = require("../CheckPerm");
-
-const permsPath = path.join(__dirname, "../perms.json");
+const extractMessage = require("../utils/extractMessage");
+const resolveTargetId = require("../utils/resolveTargetId");
+const { readPerms, writePerms } = require("../utils/permsStore");
 
 module.exports = {
   name: "addwl",
   requiredPerm: PERMS.SYS,
 
-  execute(userId, targetId) {
+  async execute(userId, targetArg, ...rest) {
     const userPerm = getUserPerm(userId);
     if (!checkPerm(userPerm, this.requiredPerm)) return;
 
-    const data = fs.existsSync(permsPath)
-      ? JSON.parse(fs.readFileSync(permsPath, "utf8"))
-      : {};
+    const { message } = extractMessage(rest);
+    const targetId = resolveTargetId(targetArg, message);
+
+    if (!targetId) return "❌ Utilisation: +addwl <id|@mention>";
+
+    const data = readPerms();
 
     // ✅ VÉRIFIER SI DÉJÀ WL
     if (data[targetId] === "WL") {
@@ -25,7 +27,7 @@ module.exports = {
     }
 
     data[targetId] = "WL";
-    fs.writeFileSync(permsPath, JSON.stringify(data, null, 2));
+    writePerms(data);
 
     const embed = new EmbedBuilder()
       .setColor("#00FF00")
@@ -33,7 +35,12 @@ module.exports = {
       .addFields(
         {
           name: "👤 Système :",
-          value: `\`\`\`\nNom d'utilisateur :: ${targetId}\nIdentifiant       :: ${userId}\n\`\`\``,
+          value: `\`\`\`\nMention     :: <@${userId}>\nIdentifiant :: ${userId}\n\`\`\``,
+          inline: false
+        },
+        {
+          name: "🎯 Cible :",
+          value: `\`\`\`\nMention     :: <@${targetId}>\nIdentifiant :: ${targetId}\n\`\`\``,
           inline: false
         },
         {
