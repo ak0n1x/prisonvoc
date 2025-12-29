@@ -7,45 +7,66 @@ const checkPerm = require("../CheckPerm");
 
 const permsPath = path.join(__dirname, "../perms.json");
 
+function extractMessage(args) {
+  const maybeMessage = args[args.length - 1];
+  if (maybeMessage && maybeMessage.content !== undefined) {
+    return { message: maybeMessage, cleanedArgs: args.slice(0, -1) };
+  }
+  return { message: null, cleanedArgs: args };
+}
+
+function resolveUserId(input, message) {
+  if (!input) return null;
+
+  // mention la plus fiable
+  const mentionId = message?.mentions?.users?.first()?.id;
+  if (mentionId) return mentionId;
+
+  // ID brut
+  if (/^\d{15,20}$/.test(input)) return input;
+
+  // <@id> / <@!id>
+  const m = input.match(/^<@!?(\d{15,20})>$/);
+  return m ? m[1] : null;
+}
+
+function readPerms() {
+  if (!fs.existsSync(permsPath)) return {};
+  try { return JSON.parse(fs.readFileSync(permsPath, "utf8")); }
+  catch { return {}; }
+}
+
+function writePerms(data) {
+  fs.writeFileSync(permsPath, JSON.stringify(data, null, 2));
+}
+
 module.exports = {
   name: "addsys",
   requiredPerm: PERMS.SYS,
 
-  execute(userId, targetId) {
+  async execute(userId, targetArg, ...rest) {
     const userPerm = getUserPerm(userId);
     if (!checkPerm(userPerm, this.requiredPerm)) return;
 
-    const data = fs.existsSync(permsPath)
-      ? JSON.parse(fs.readFileSync(permsPath, "utf8"))
-      : {};
+    const { message } = extractMessage(rest);
+    const targetId = resolveUserId(targetArg, message);
 
-    // ✅ VÉRIFIER SI DÉJÀ SYS
-    if (data[targetId] === "SYS") {
-      return; // Ignore silencieusement
-    }
+    if (!targetId) return "❌ Utilisation: +addsys <id|@mention>";
+
+    const data = readPerms();
+    if (data[targetId] === "SYS") return "ℹ️ Cet utilisateur est déjà SYS.";
 
     data[targetId] = "SYS";
-    fs.writeFileSync(permsPath, JSON.stringify(data, null, 2));
+    writePerms(data);
 
     const embed = new EmbedBuilder()
       .setColor("#FF00FF")
       .setTitle("✅ SYSTÈME ADD")
       .addFields(
-        {
-          name: "👤 Système :",
-          value: `\`\`\`\nNom d'utilisateur :: ${targetId}\nIdentifiant       :: ${userId}\n\`\`\``,
-          inline: false
-        },
-        {
-          name: "🔐 Niveau :",
-          value: `\`\`\`\nStatut :: AJOUTÉ\nNiveau :: SYS (0)\n\`\`\``,
-          inline: false
-        },
-        {
-          name: "📋 Informations :",
-          value: `\`\`\`\n> Statut : ✅ Succès\n> Date   : ${new Date().toLocaleString('fr-FR')}\n\`\`\``,
-          inline: false
-        }
+        { name: "👤 Système :", value: `\`\`\`\nIdentifiant :: ${userId}\n\`\`\``, inline: false },
+        { name: "🎯 Cible :", value: `\`\`\`\nIdentifiant :: ${targetId}\n\`\`\``, inline: false },
+        { name: "🔐 Niveau :", value: `\`\`\`\nStatut :: AJOUTÉ\nNiveau :: SYS (0)\n\`\`\``, inline: false },
+        { name: "📋 Informations :", value: `\`\`\`\n> Statut : ✅ Succès\n> Date   : ${new Date().toLocaleString("fr-FR")}\n\`\`\``, inline: false }
       )
       .setFooter({ text: "YOSEN SANCTION • Permission System" })
       .setTimestamp();

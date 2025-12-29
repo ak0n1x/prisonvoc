@@ -16,5 +16,14 @@
     "type": "PERMANENT",
     "unbanTime": null,
     "timestamp": 1766967174768
+  },
+  "660924985241763861": {
+    "date": "29/12/2025 02:50:04",
+    "raison": "+ban 660924985241763861",
+    "by": "1414876407997272126",
+    "byLevel": 0,
+    "type": "PERMANENT",
+    "unbanTime": null,
+    "timestamp": 1766973004583
   }
 }

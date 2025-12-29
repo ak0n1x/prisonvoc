@@ -7,45 +7,29 @@ const checkPerm = require("../CheckPerm");
 
 const permsPath = path.join(__dirname, "../perms.json");
 
+function readPerms() {
+  try {
+    if (!fs.existsSync(permsPath)) return {};
+    return JSON.parse(fs.readFileSync(permsPath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
 module.exports = {
   name: "syslist",
   requiredPerm: PERMS.SYS,
 
-  execute(userId) {
+  async execute(userId) {
     const userPerm = getUserPerm(userId);
     if (!checkPerm(userPerm, this.requiredPerm)) return;
 
-    if (!fs.existsSync(permsPath)) {
-      const embed = new EmbedBuilder()
-        .setColor("#FF00FF")
-        .setTitle("📜 SYSTÈME LIST")
-        .addFields(
-          {
-            name: "👥 Utilisateurs SYS :",
-            value: `\`\`\`\nAucun utilisateur\n\`\`\``,
-            inline: false
-          },
-          {
-            name: "📋 Informations :",
-            value: `\`\`\`\n> Total : 0\n> Date  : ${new Date().toLocaleString('fr-FR')}\n\`\`\``,
-            inline: false
-          }
-        )
-        .setFooter({ text: "YOSEN SANCTION • Permission System" })
-        .setTimestamp();
+    const data = readPerms();
+    const list = Object.keys(data).filter((id) => data[id] === "SYS");
 
-      return { embeds: [embed] };
-    }
-
-    const data = JSON.parse(fs.readFileSync(permsPath, "utf8"));
-    const list = Object.keys(data).filter(id => data[id] === "SYS");
-
-    let usersList = "";
-    if (list.length > 0) {
-      usersList = list.map((id, i) => `${i + 1}. ${id}`).join("\n");
-    } else {
-      usersList = "Aucun utilisateur";
-    }
+    const usersList = list.length
+      ? list.map((id, i) => `${i + 1}. ${id}`).join("\n")
+      : "Aucun utilisateur";
 
     const embed = new EmbedBuilder()
       .setColor("#FF00FF")
@@ -58,7 +42,7 @@ module.exports = {
         },
         {
           name: "📋 Informations :",
-          value: `\`\`\`\n> Total : ${list.length}\n> Niveau : SYS (0)\n> Date  : ${new Date().toLocaleString('fr-FR')}\n\`\`\``,
+          value: `\`\`\`\n> Total : ${list.length}\n> Niveau : SYS (0)\n> Date  : ${new Date().toLocaleString("fr-FR")}\n\`\`\``,
           inline: false
         }
       )

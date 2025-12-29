@@ -39,20 +39,109 @@
           "issuedBy": "1414876407997272126",
           "issuedLevel": 0,
           "stage": "permanent"
+        },
+        {
+          "userId": "1025818106502860961",
+          "reason": "test",
+          "type": "sys",
+          "duration": "24 heures (limite SYS)",
+          "endsAt": "2025-12-30T01:54:27.399Z",
+          "issuedBy": "1414876407997272126",
+          "issuedLevel": 0,
+          "stage": "manual_unban",
+          "guildId": "1452847773027274864",
+          "createdAt": "2025-12-29T01:54:27.411Z",
+          "expiredAt": "2025-12-29T01:56:33.456Z"
         }
       ],
-      "active": {
-        "userId": "1025818106502860961",
-        "reason": "+ban 1025818106502860961",
-        "type": "classique",
-        "duration": "Permanent",
-        "endsAt": null,
-        "createdAt": "2025-12-29T00:12:54.768Z",
-        "issuedBy": "1414876407997272126",
-        "issuedLevel": 0,
-        "stage": "permanent"
-      },
+      "totalSanctions": 2
+    },
+    "<@1446840868932685857>": {
+      "history": [
+        {
+          "userId": "<@1446840868932685857>",
+          "reason": "ntm",
+          "type": "sys",
+          "duration": "Infini",
+          "endsAt": null,
+          "issuedBy": "660924985241763861",
+          "issuedLevel": 0,
+          "stage": "manual_unban",
+          "guildId": "1452847773027274864",
+          "createdAt": "2025-12-29T02:09:07.918Z",
+          "expiredAt": "2025-12-29T02:23:06.033Z"
+        }
+      ],
       "totalSanctions": 1
+    },
+    "1446840868932685857": {
+      "history": [
+        {
+          "userId": "1446840868932685857",
+          "reason": "je t'emmerde",
+          "type": "sys",
+          "duration": "Infini",
+          "endsAt": null,
+          "issuedBy": "660924985241763861",
+          "issuedLevel": 0,
+          "stage": "manual_unban",
+          "guildId": "1452847773027274864",
+          "createdAt": "2025-12-29T02:10:01.514Z",
+          "expiredAt": "2025-12-29T02:11:06.316Z"
+        },
+        {
+          "userId": "1446840868932685857",
+          "reason": "je t'emmerde",
+          "type": "owner",
+          "duration": "1 semaine",
+          "endsAt": "2026-01-05T02:15:20.893Z",
+          "issuedBy": "660924985241763861",
+          "issuedLevel": 1,
+          "stage": "manual_unban",
+          "guildId": "1452847773027274864",
+          "createdAt": "2025-12-29T02:15:20.910Z",
+          "expiredAt": "2025-12-29T02:15:56.739Z"
+        },
+        {
+          "userId": "1446840868932685857",
+          "reason": "je t'emmerde",
+          "type": "sys",
+          "duration": "Infini",
+          "endsAt": null,
+          "issuedBy": "660924985241763861",
+          "issuedLevel": 0,
+          "stage": "manual_unban",
+          "guildId": "1452847773027274864",
+          "createdAt": "2025-12-29T02:21:25.228Z",
+          "expiredAt": "2025-12-29T02:21:55.581Z"
+        },
+        {
+          "userId": "1446840868932685857",
+          "reason": "Cc",
+          "type": "sys",
+          "duration": "Infini",
+          "endsAt": null,
+          "issuedBy": "1414876407997272126",
+          "issuedLevel": 0,
+          "stage": "permanent",
+          "guildId": "1452847773027274864",
+          "createdAt": "2025-12-29T02:22:18.183Z"
+        },
+        {
+          "userId": "1446840868932685857",
+          "reason": "n’a",
+          "type": "sys",
+          "duration": "Infini",
+          "endsAt": null,
+          "issuedBy": "1414876407997272126",
+          "issuedLevel": 0,
+          "stage": "manual_unban",
+          "guildId": "1452847773027274864",
+          "createdAt": "2025-12-29T02:28:25.112Z",
+          "expiredAt": "2025-12-29T02:28:41.091Z"
+        }
+      ],
+      "totalSanctions": 5
     }
   }
 }

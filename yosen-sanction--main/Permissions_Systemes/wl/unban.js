@@ -3,39 +3,90 @@ const getUserPerm = require("../GetUserPerm");
 const PERMS = require("../permission");
 const banStore = require("../banStore");
 
+const permNames = {
+  0: "SYS",
+  1: "OWNER",
+  2: "WL",
+  3: "PUBLIC",
+};
+
+function extractMessage(args) {
+  if (!args.length) return { message: null, cleanedArgs: [] };
+  const maybeMessage = args[args.length - 1];
+  if (maybeMessage && maybeMessage.content !== undefined) {
+    return { message: maybeMessage, cleanedArgs: args.slice(0, -1) };
+  }
+  return { message: null, cleanedArgs: args };
+}
+
+// accepte ID / <@id> / <@!id> / mention
+function resolveUserId(input, message) {
+  if (!input) return null;
+
+  const fromMentions = message?.mentions?.users?.first()?.id;
+  if (fromMentions) return fromMentions;
+
+  if (/^\d{15,20}$/.test(input)) return input;
+
+  const mentionMatch = input.match(/^<@!?(\d{15,20})>$/);
+  if (mentionMatch) return mentionMatch[1];
+
+  return null;
+}
+
 module.exports = {
   name: "unban",
   async execute(userId, targetId, ...rest) {
-    if (!targetId) return "❌ Utilisation: +unban <user_id>";
+    const { message: contextMessage } = extractMessage(rest);
 
-    const active = banStore.getActiveBan(targetId);
-    if (!active) return `❌ ${targetId} n'est pas banni`;
+    const resolvedTargetId = resolveUserId(targetId, contextMessage);
+    if (!resolvedTargetId) return "❌ Utilisation: +unban <user_id|@mention>";
+
+    const active = banStore.getActiveBan(resolvedTargetId);
+    if (!active) return `❌ ${resolvedTargetId} n'est pas banni`;
 
     const userPerm = getUserPerm(userId);
 
-    if (active.type === "sys" && userPerm > PERMS.SYS) {
-      return "❌ Seul un SYS peut retirer un ban SYS";
+    // 🔒 Règle principale : tu ne peux unban que si ton rang >= rang du bannisseur
+    // (0 = SYS est plus haut que 1 = OWNER, etc.)
+    const issuerLevel = typeof active.issuedLevel === "number" ? active.issuedLevel : null;
+
+    if (issuerLevel === null) {
+      // fallback si old bans n’ont pas issuedLevel
+      return "❌ Impossible de déterminer le niveau du bannisseur (ban trop ancien).";
     }
 
-    if (active.type === "classique" && active.stage !== "permanent" && userPerm > PERMS.OWNER) {
-      return "❌ Seul un OWNER ou SYS peut retirer ce ban";
+    // Exemple: ban par SYS (0) => userPerm doit être 0
+    // ban par OWNER (1) => userPerm peut être 0 ou 1
+    if (userPerm > issuerLevel) {
+      return `❌ Vous ne pouvez pas retirer ce ban. Requis: ${permNames[issuerLevel] ?? "INCONNU"} ou supérieur.`;
     }
 
-    const contextMessage = rest.find((value) => value?.content !== undefined) || null;
+    // (optionnel) Interdire PUBLIC même si jamais ça arriverait
+    if (userPerm > PERMS.WL) {
+      return "❌ Permission insuffisante.";
+    }
 
-    banStore.removeBan(targetId);
+    // Supprimer du store
+    banStore.removeBan(resolvedTargetId);
 
     const embed = new EmbedBuilder()
       .setColor("#0b0b0b")
       .setTitle("DÉBANNISSEMENT")
       .setDescription("Le bannissement actif a été retiré.")
       .addFields(
-        { name: "Utilisateur", value: `\`${targetId}\``, inline: true },
-        { name: "Type", value: active.type.toUpperCase(), inline: true },
-        { name: "Motif initial", value: active.reason || "Aucun", inline: false }
+        { name: "Utilisateur", value: `\`${resolvedTargetId}\``, inline: true },
+        { name: "Type", value: (active.type || "INCONNU").toUpperCase(), inline: true },
+        { name: "Motif initial", value: active.reason || "Aucun", inline: false },
+        {
+          name: "Ban appliqué par",
+          value: `${permNames[issuerLevel] ?? issuerLevel}`,
+          inline: true,
+        }
       )
       .setTimestamp();
 
+    // Unban Discord si on a un contexte serveur
     if (contextMessage) {
       const guild =
         contextMessage.guild ||
@@ -44,10 +95,10 @@ module.exports = {
           : null);
 
       if (guild) {
-        await guild.members.unban(targetId).catch(() => {});
+        await guild.members.unban(resolvedTargetId).catch(() => {});
       }
     }
 
-    return { embeds: [embed], targetId };
-  }
+    return { embeds: [embed], targetId: resolvedTargetId };
+  },
 };

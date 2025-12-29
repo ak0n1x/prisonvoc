@@ -1,24 +1,19 @@
-const {
-  ActionRowBuilder,
-  EmbedBuilder,
-  StringSelectMenuBuilder
-} = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const getUserPerm = require("../GetUserPerm");
 const PERMS = require("../permission");
 const banStore = require("../banStore");
-
-const durationPresets = {
-  "24h": { label: "24 heures", ms: 24 * 60 * 60 * 1000 },
-  "3d": { label: "3 jours", ms: 3 * 24 * 60 * 60 * 1000 },
-  "1w": { label: "1 semaine", ms: 7 * 24 * 60 * 60 * 1000 },
-  "permanent": { label: "Permanent", ms: null }
-};
 
 const permNames = {
   0: "SYS",
   1: "OWNER",
   2: "WL",
-  3: "PUBLIC"
+  3: "PUBLIC",
+};
+
+const DURATION = {
+  SYS: { label: "Infini", ms: null },
+  OWNER: { label: "1 semaine", ms: 7 * 24 * 60 * 60 * 1000 },
+  WL: { label: "24 heures", ms: 24 * 60 * 60 * 1000 },
 };
 
 function extractMessage(args) {
@@ -30,35 +25,57 @@ function extractMessage(args) {
   return { message: null, cleanedArgs: args };
 }
 
-function buildMenuEmbed(targetId, reasonText, selection, sanctionCount) {
-  const durationLabel = durationPresets[selection.duration]?.label || "Non défini";
+// ✅ NOUVEAU : accepte ID brut, <@id>, <@!id>, ou mention dans le message
+function resolveUserId(input, message) {
+  if (!input) return null;
+
+  // Si la personne a été mentionnée, c'est le plus fiable
+  const fromMentions = message?.mentions?.users?.first()?.id;
+  if (fromMentions) return fromMentions;
+
+  // Si c'est déjà un ID
+  if (/^\d{15,20}$/.test(input)) return input;
+
+  // Mention <@123> ou <@!123>
+  const mentionMatch = input.match(/^<@!?(\d{15,20})>$/);
+  if (mentionMatch) return mentionMatch[1];
+
+  return null;
+}
+
+function formatUserBlock(user, fallbackId) {
+  const username = user?.username ?? "Inconnu";
+  const id = user?.id ?? fallbackId ?? "Inconnu";
+  return "```" + `Nom d'utilisateur :: ${username}\nIdentifiant       :: ${id}` + "```";
+}
+
+function buildBanInfoEmbed({ issuerUser, targetUser, reason, typeLabel, durationLabel }) {
   return new EmbedBuilder()
     .setColor("#0b0b0b")
-    .setTitle("SÉLECTEUR DE SANCTION")
-    .setDescription("Choisissez la durée et le type avant de valider le ban.")
+    .setTitle(`🔎 BAN INFO ${targetUser ? `@${targetUser.username}` : ""}`.trim())
     .addFields(
-      { name: "Cible", value: `\`${targetId}\``, inline: true },
-      { name: "Raison", value: reasonText || "Aucune", inline: false },
-      { name: "Durée", value: durationLabel, inline: true },
-      { name: "Type", value: selection.type.toUpperCase(), inline: true },
-      { name: "Sanctions existantes", value: `${sanctionCount}`, inline: true }
+      { name: "Système :", value: formatUserBlock(issuerUser, issuerUser?.id), inline: false },
+      { name: "Criminel :", value: formatUserBlock(targetUser, targetUser?.id), inline: false },
+      {
+        name: "Informations :",
+        value: `> Raison : \`${reason}\`\n> Type : \`${typeLabel}\`\n> Durée : \`${durationLabel}\``,
+        inline: false,
+      }
     )
     .setTimestamp();
 }
 
-function buildDmEmbed(entry) {
-  const endDate = entry.endsAt
-    ? new Date(entry.endsAt).toLocaleString("fr-FR")
-    : "Aucune (infini)";
+function buildDmEmbed({ reason, typeLabel, durationLabel, endsAtISO }) {
+  const endDate = endsAtISO ? new Date(endsAtISO).toLocaleString("fr-FR") : "Aucune (infini)";
 
   return new EmbedBuilder()
     .setColor("#0b0b0b")
     .setTitle("Notification de bannissement")
     .setDescription("Vous êtes banni. Les informations ci-dessous précisent la sanction appliquée.")
     .addFields(
-      { name: "Motif", value: entry.reason || "Aucun" },
-      { name: "Type", value: entry.type.toUpperCase() },
-      { name: "Durée", value: entry.duration },
+      { name: "Motif", value: reason || "Aucun" },
+      { name: "Type", value: typeLabel },
+      { name: "Durée", value: durationLabel },
       { name: "Fin prévue", value: endDate }
     )
     .setFooter({ text: "Système de sanctions" })
@@ -67,194 +84,121 @@ function buildDmEmbed(entry) {
 
 module.exports = {
   name: "ban",
+
   async execute(userId, targetId, ...rawReason) {
     const { message, cleanedArgs } = extractMessage(rawReason);
-    const reason = cleanedArgs.join(" ");
+    const reason = cleanedArgs.join(" ").trim();
 
-    if (!targetId) {
-      const errorEmbed = new EmbedBuilder()
+    if (!message) return "❌ Le contexte du message est requis.";
+
+    // ✅ NOUVEAU : on résout la cible (mention ou id)
+    const resolvedTargetId = resolveUserId(targetId, message);
+
+    if (!resolvedTargetId) {
+      const e = new EmbedBuilder()
         .setColor("#808080")
         .addFields(
-          { name: "Type", value: "Arguments manquants", inline: true },
-          { name: "Utilisation", value: "+ban <id> <raison>", inline: false }
+          { name: "Type", value: "Cible invalide", inline: true },
+          { name: "Utilisation", value: "+ban <id|@mention> <raison>", inline: false }
         )
         .setTimestamp();
-
-      return { embeds: [errorEmbed] };
-    }
-
-    if (!message) {
-      return "❌ Le contexte du message est requis pour ouvrir le menu.";
+      return { embeds: [e] };
     }
 
     if (!reason) {
-      const errorEmbed = new EmbedBuilder()
+      const e = new EmbedBuilder()
         .setColor("#808080")
         .addFields(
           { name: "Type", value: "Raison obligatoire", inline: true },
-          { name: "Utilisation", value: "+ban <id> <raison>", inline: false }
+          { name: "Utilisation", value: "+ban <id|@mention> <raison>", inline: false }
         )
         .setTimestamp();
-
-      return { embeds: [errorEmbed] };
+      return { embeds: [e] };
     }
 
+    // Perm de celui qui ban
     const issuerPerm = getUserPerm(userId);
-    if (issuerPerm > PERMS.OWNER) {
-      const errorEmbed = new EmbedBuilder()
+
+    // Autoriser SYS / OWNER / WL à ban
+    if (issuerPerm > PERMS.WL) {
+      const e = new EmbedBuilder()
         .setColor("#808080")
         .addFields(
           { name: "Type", value: "Permission insuffisante", inline: true },
-          { name: "Votre niveau", value: permNames[issuerPerm], inline: true },
-          { name: "Requis", value: "OWNER ou SYS", inline: true }
+          { name: "Votre niveau", value: permNames[issuerPerm] ?? "INCONNU", inline: true },
+          { name: "Requis", value: "WL ou plus", inline: true }
         )
         .setTimestamp();
-
-      return { embeds: [errorEmbed] };
+      return { embeds: [e] };
     }
 
-    const targetPerm = getUserPerm(targetId);
-    const sanctionCount = banStore.getBanCount(targetId);
-    const initialSelection = { duration: "24h", type: "classique" };
-
-    const durationMenu = new StringSelectMenuBuilder()
-      .setCustomId("ban-duration")
-      .setPlaceholder("Durée de la sanction")
-      .addOptions(
-        Object.entries(durationPresets).map(([value, preset]) => ({
-          label: preset.label,
-          value
-        }))
-      );
-
-    const typeMenu = new StringSelectMenuBuilder()
-      .setCustomId("ban-type")
-      .setPlaceholder("Type de sanction")
-      .addOptions([
-        { label: "Classique", value: "classique" },
-        { label: "SYS", value: "sys" },
-        { label: "WET", value: "wet" }
-      ]);
-
-    const components = [
-      new ActionRowBuilder().addComponents(durationMenu),
-      new ActionRowBuilder().addComponents(typeMenu)
-    ];
-
-    const promptEmbed = buildMenuEmbed(targetId, reason, initialSelection, sanctionCount);
-    const promptMessage = await message.reply({ embeds: [promptEmbed], components });
-
-    let selection = { ...initialSelection };
-
-    const collector = promptMessage.createMessageComponentCollector({
-      time: 60_000,
-      filter: (interaction) => interaction.user.id === userId
-    });
-
-    collector.on("collect", async (interaction) => {
-      if (interaction.customId === "ban-duration") {
-        selection.duration = interaction.values[0];
-      }
-      if (interaction.customId === "ban-type") {
-        selection.type = interaction.values[0];
-      }
-      const updatedEmbed = buildMenuEmbed(targetId, reason, selection, sanctionCount);
-      await interaction.update({ embeds: [updatedEmbed], components });
-    });
-
-    collector.on("end", async () => {
-      const disabled = components.map((row) =>
-        new ActionRowBuilder().addComponents(
-          ...row.components.map((component) => component.setDisabled(true))
+    // Perm de la cible (pour empêcher de ban quelqu’un au-dessus / égal si pas SYS)
+    const targetPerm = getUserPerm(resolvedTargetId);
+    if (issuerPerm !== PERMS.SYS && targetPerm <= issuerPerm) {
+      const e = new EmbedBuilder()
+        .setColor("#808080")
+        .addFields(
+          { name: "Type", value: "Action interdite", inline: true },
+          { name: "Votre niveau", value: permNames[issuerPerm] ?? "INCONNU", inline: true },
+          { name: "Niveau cible", value: permNames[targetPerm] ?? "INCONNU", inline: true }
         )
-      );
-      await promptMessage.edit({ components: disabled });
+        .setDescription("❌ Vous ne pouvez pas bannir un membre de niveau égal ou supérieur.")
+        .setTimestamp();
+      return { embeds: [e] };
+    }
 
-      await this.finalizeBan({
-        message,
-        userId,
-        targetId,
-        reason,
-        selection,
-        issuerPerm,
-        targetPerm
-      });
-    });
-  },
+    // Type + durée AUTOMATIQUES selon le niveau du staff (issuer)
+    const issuerLevelName = permNames[issuerPerm] ?? "PUBLIC";
+    const rule = DURATION[issuerLevelName] ?? DURATION.WL;
 
-  async finalizeBan({ message, userId, targetId, reason, selection, issuerPerm, targetPerm }) {
     const now = Date.now();
-    let durationLabel = durationPresets[selection.duration]?.label || "Non défini";
-    let durationMs = durationPresets[selection.duration]?.ms ?? null;
-    let endsAt = durationMs ? new Date(now + durationMs).toISOString() : null;
-    let stage = "active";
+    const endsAtISO = rule.ms ? new Date(now + rule.ms).toISOString() : null;
 
-    if (selection.type === "sys") {
-      if (targetPerm > PERMS.SYS) {
-        durationMs = 24 * 60 * 60 * 1000;
-        durationLabel = "24 heures (limite SYS)";
-        endsAt = new Date(now + durationMs).toISOString();
-      } else {
-        durationMs = 7 * 24 * 60 * 60 * 1000;
-        durationLabel = "Phase SYS : 7 jours puis définitif";
-        endsAt = new Date(now + durationMs).toISOString();
-        stage = "conversion_pending";
-      }
-    }
+    const typeLabel = issuerLevelName; // SYS / OWNER / WL
+    const durationLabel = rule.label;  // Infini / 1 semaine / 24h
+    const stage = rule.ms ? "active" : "permanent";
 
-    if (selection.type === "wet") {
-      durationMs = null;
-      endsAt = null;
-      durationLabel = "Permanent (wet list)";
-      stage = "permanent";
-      banStore.setWetEntry(targetId, {
-        date: new Date().toLocaleString("fr-FR"),
-        by: userId,
-        reason
-      });
-    }
-
-    if (selection.type === "classique" && durationMs === null) {
-      stage = "permanent";
-    }
-
+    // log/stockage
+    banStore.getBanCount(resolvedTargetId); // si tu l'utilises ailleurs
     const { count, entry } = banStore.recordBan({
-      userId: targetId,
+      userId: resolvedTargetId,
       reason,
-      type: selection.type,
+      type: typeLabel.toLowerCase(), // "sys" / "owner" / "wl"
       duration: durationLabel,
-      endsAt,
+      endsAt: endsAtISO,
       issuedBy: userId,
       issuedLevel: issuerPerm,
       stage,
-      guildId: message.guild?.id || null
+      guildId: message.guild?.id || null,
     });
 
-    const channelEmbed = new EmbedBuilder()
-      .setColor("#0b0b0b")
-      .setTitle("Bannissement appliqué")
-      .addFields(
-        { name: "Utilisateur", value: `\`${targetId}\``, inline: true },
-        { name: "Type", value: selection.type.toUpperCase(), inline: true },
-        { name: "Durée", value: durationLabel, inline: true },
-        { name: "Fin prévue", value: endsAt ? new Date(endsAt).toLocaleString("fr-FR") : "Aucune" },
-        { name: "Motif", value: reason, inline: false },
-        { name: "Sanctions enregistrées", value: `${count}`, inline: true }
-      )
-      .setTimestamp();
+    // Récup users pour l’embed style “BAN INFO”
+    const issuerUser = await message.client.users.fetch(userId).catch(() => null);
+    const targetUser = await message.client.users.fetch(resolvedTargetId).catch(() => null);
 
-    await message.channel.send({ embeds: [channelEmbed] });
+    const infoEmbed = buildBanInfoEmbed({
+      issuerUser,
+      targetUser: targetUser ?? { id: resolvedTargetId, username: "Inconnu" },
+      reason,
+      typeLabel,
+      durationLabel,
+    });
 
-    const dmUser = await message.client.users.fetch(targetId).catch(() => null);
-    if (dmUser) {
-      const dmEmbed = buildDmEmbed(entry);
-      await dmUser.send({ embeds: [dmEmbed] }).catch(() => {});
+    await message.channel.send({ embeds: [infoEmbed] });
+
+    // DM
+    if (targetUser) {
+      const dmEmbed = buildDmEmbed({ reason, typeLabel, durationLabel, endsAtISO });
+      await targetUser.send({ embeds: [dmEmbed] }).catch(() => {});
     }
 
+    // Ban Discord
     try {
-      await message.guild?.members.ban(targetId, { reason }).catch(() => {});
+      await message.guild?.members.ban(resolvedTargetId, { reason });
     } catch (err) {
-      console.error("Erreur lors du ban Discord:", err.message);
+      console.error("Erreur lors du ban Discord:", err?.message ?? err);
     }
-  }
+
+    return;
+  },
 };
