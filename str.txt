@@ -1,0 +1,184 @@
+brom_text.bin  firmware.bin
+laye18@LAYE:/mnt/c/Users/konea/Documents/seculog/tp1_secumateriel/dump_brom$ cat brom_data.bin
+�E~T�T��7"T<K��Version is too low: %dBoot failed, aborting.Offset of a part is too high: %d%02x Number of parts too high: %dLength of a part is too high: %dfail signature verif %02x vs %02xError in header checkSecure boot passed, jumping to firmware.Checking headerlaye18@LAYE:/mnt/c/Users/konea/Documents/seculog/tp1_secumateriel/dump_brom$cat  emulator_code_only.py 
+#!/usr/bin/env python3
+
+import sys
+from unicorn import *
+from unicorn.arm_const import *
+from udbserver import udbserver
+
+class ARMEmulator:
+    def __init__(self, text_path, data_path):
+        self.text_binary_path = text_path
+        self.data_binary_path = data_path
+        self.uc = Uc(UC_ARCH_ARM, UC_MODE_ARM)
+
+        # Memory layout - match linker script addresses
+        self.CODE_BASE = 0x10000   # .text at 0x10000
+        self.DATA_BASE = 0x20000   # .data at 0x20000
+        self.UART_BASE = 0x80000
+        self.UART_SIZE = 0x1000
+        self.FW_BASE = 0xC0000
+        self.FW_SIZE = 0x10000
+        self.STACK_BASE = 0x40000  # Stack
+        self.STACK_SIZE = 0x10000
+
+        self.UART_PRINT_ADDR = 0x00010070
+        self.START_ADDR = 0x00010d38
+
+        self.uart_calls = []
+
+    def setup_memory(self):
+        """Map memory regions for code, data, and stack"""
+        # Map sections according to linker script
+        self.uc.mem_map(self.CODE_BASE, 0x10000, UC_PROT_READ | UC_PROT_EXEC)
+
+        # Map the rest here!
+
+        print(f"[+] Memory mapped:")
+        print(f"    Code:     0x{self.CODE_BASE:08x} - 0x{self.CODE_BASE + 0x10000:08x}")
+
+    def load_binary(self):
+        """Load the ARM binary sections into emulated memory"""
+        try:
+            # Load .text section (linked with resolved relocations)
+            with open(self.text_binary_path, 'rb') as f:
+                text_data = f.read()
+            self.uc.mem_write(self.CODE_BASE, text_data)
+            print(f"[+] .text: {len(text_data)} bytes at 0x{self.CODE_BASE:08x}")
+
+        except Exception as e:
+            print(f"[-] Error loading binary sections: {e}")
+            sys.exit(1)
+
+    def setup_registers(self):
+        """Initialize ARM registers"""
+        # Set stack pointer here!
+
+
+    def hook_code(self, uc, address, size, user_data):      
+        print(f"[EXEC] 0x{address:08x}")
+
+    def emulate(self):
+        """Start ARM emulation"""
+        print(f"[+] Starting emulation from 0x{self.START_ADDR:08x}")
+
+        # Add hooks here!
+        self.uc.hook_add(UC_HOOK_CODE, self.hook_code)  # Enable for debugging
+
+        #udbserver(self.uc, 1234, self.START_ADDR)
+
+        try:
+            # Start emulation from _start function
+            self.uc.emu_start(self.START_ADDR, 0)  # 10 second timeout
+
+        except UcError as e:
+            pc = self.uc.reg_read(UC_ARM_REG_PC)
+            print(f"[-] Emulation error at PC: 0x{pc:08x}") 
+            print(f"[-] Error: {e} (errno: {e.errno})")     
+
+
+def main():
+    if len(sys.argv) != 3:
+        print("Usage: python3 emulate_arm.py <text_file> <data_file>")
+        print("Example: python3 emulate_arm.py main_linked_text.bin main_linked_data.bin")
+        sys.exit(1)
+
+    text_path = sys.argv[1]
+    data_path = sys.argv[2]
+
+    print("ARM Firmware Emulator with UART Capture")        
+    print("=" * 40)
+
+    emulator = ARMEmulator(text_path, data_path)
+    emulator.setup_memory()
+    emulator.load_binary()
+    emulator.setup_registers()
+    emulator.emulate()
+
+if __name__ == "__main__":
+    main()
+laye18@LAYE:/mnt/c/Users/konea/Documents/seculog/tp1_secumateriel/dump_brom$ ls
+brom_data.bin  emulator_code_only.py
+brom_text.bin  firmware.bin
+laye18@LAYE:/mnt/c/Users/konea/Documents/seculog/tp1_secumateriel/dump_brom$ cat firmware.bin 
+SECM5I1����Part1FirmwareDataPart2FirmwareDatalaye18@LAYE:/mnt/c/Users/konea/Documents/seculog/tp1_secumateriel/dump_brom$
+
+
+Intitulé
+Breaking news : EPITA lance sa console de jeu!
+Une source anonyme a leak le dump de la BROM ainsi que le code du premier jeu
+développé pour! Cependant, la BROM obtenue est plus récente et rejette ce jeu. La
+signature du jeu est valide et serait accepté par cette BROM, si seulement la version du jeu
+correspondait à la version attendue par la BROM!
+Le but de ce TP sera de faire accepter le jeu (firmware) par la bootrom.
+Partie 1: Backward compatibility - Dans un premier temps, on va adapter le firmware pour
+passer les vérifications basiques, même si cela risque de poser un problème de signature...
+Partie 2 : Fault Injection - Ensuite, nous allons simuler une faute sur le processeur pour
+faire passer la vérification de signature malgré notre modification précédente.
+Vous avez trois fichiers:
+Emulation & Backward compatibility
+A ce moment là, votre BROM devrait s'exécuter dans l'émulateur. Vous pouvez vérifier avec
+quelques stepi depuis GDB. Utilisez udbserver pour debug avec GDB, de manière
+similaire à QEMU, udbserver va créer un gdbserver dans le contexte de Unicorn. Vous
+devrez ensuite vous connecter avec gdb-multiarch )
+Un dump mémoire du .text avec le code de la BROM (mappé à l'adresse 0x10000). Le
+binaire tourne sur un processeur ARMv7 32bits little endian.
+Un dump mémoire de .data de la BROM (mappé à l'adresse 0x20000)
+Une image binaire du firmware
+Un fichier Python qui va permettre d'émuler la BROM que vous devrez compléter
+. Chargez dans Ghidra le .text et le .data
+Commencez par Import le text , mappez le à l'adresse indiquée (peut se faire via
+les options à l'import ou sinon par la fenêtre Memory Map à posteriori)
+Puis, dans la fenêtre Ghidra, faites: File -> Add to Program -> Sélectionnez le
+fichier data
+2. Question: Cette BROM est en Thumb mode ou non? A quoi le voyez-vous?
+3. Le fichier Python vous donne quelques informations, notamment l'adresse de certains
+symboles, vous pouvez les analyser dans Ghidra pour mieux comprendre les opérations
+Renommez dans Ghidra les fonctions _start , check_signature & uart_print
+4. Le script fourni charge correctement le code. Vous devez ajouter la logique nécessaire
+pour la data (avec le fichier correspondant)
+5. Il vous faut aussi une stack!
+Injection de faute
+A cause de la modification précédente du firmware (du jeu!), sa signature n'est plus valide
+pour la BROM! Nous allons attaquer cette vérification par injection de faute.
+Nous allons d'abord attaquer en modifiant de la donnée et dans un second temps, attaquer
+en fautant l'exécution d'une instruction (sauter l'instruction)
+Et si on faute la vérification de la version?
+4. Hook sur la fonction de log sur UART
+Définition : Un hook est une fonction qui va s'exécuter lorsqu'un évènement se
+produit
+Créer un hook à l'exécution de la fonction de log et afficher le contenu de la chaine
+de caractère qui est copiée sur l'UART.
+Cela va vous aider à debug par la suite ce qu'il se passe durant l'exécution
+Si vous lisez bien le code de cette fonction UART, elle ne fait pas que copier le
+buffer. Certaines opérations sont nécessaire pour que le driver UART s'assure que le
+hardware est prêt à recevoir le buffer. Contournez ce mécanisme pour que
+l'émulation de nouveaux appels à la fonction ne pose pas de problème.
+5. Créez une structure de donnée avec le Data Manager de Ghidra pour le header du
+firmware. Aidez vous des fonctions de logs pour trouvez la taille et le nom de chaque
+champs.
+6. Identifiez le point où la BROM rejette le firmware et la raison
+7. Modifiez votre firmware pour que la BROM passe cette vérification. Cela va impacter la
+signature, et nous allons résoudre ça dans la partie suivante.
+La BROM ne peut pas être modifiée!! Vous devez modifier le firmware pour
+passer cette vérification
+. Simulez une injection de faute en inversant un unique bit dans un registre précis lors
+d'une instruction précise autre que pc qui permettrait de passer avec succès la
+vérification du firmware
+Par exemple, le registre R3 a pour valeur 0x401 à l'adresse 0x8004c. Vous pouvez avec
+Unicorn récupérer la main lorsque le PC atteint 0x8004c, et modifier la valeur R3 avec
+un bit flip. Par exemple, faites une lecture de r3, faites un XOR avec une puissance de
+deux et réécrivez le.
+R3 = 0x401, R3 ^= 1, R3 == 0x400
+2. Simulez une injection de faute en ignorant une instruction précise.
+Par exemple le PC pointe sur 0x8004c, l'instruction pointée est encodée sur 4 bytes,
+vous pouvez donc faire PC += 4 pour ignorer cette instruction.
+3. Trouvez une autre manière, par l'injection de plusieurs bits aléatoires dans de la donnée
+(récupérez 4 octets d'aléatoire et xorez avec un registre), à une autre adresse que la
+question 1
+. Fautez la vérification de version (en utilisant le firmware d'origine)
+2. Expliquez pourquoi ça ne fonctionne pas dans le cas présent
+
+donne moi un tuto pour faire ce tp
