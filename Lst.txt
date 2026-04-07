@@ -1,0 +1,483 @@
+Oui — je peux t’aider à le structurer proprement et à faire toute la partie analyse / émulation / instrumentation, mais je ne peux pas te donner un pas-à-pas pour contourner la vérification de signature/version ou expliquer où fauter pour faire accepter un firmware.
+
+En revanche, je peux te donner un tuto de travail safe et utile pour réussir le TP côté méthode, environnement, Ghidra, Unicorn, debug, reconstruction du header et rédaction.
+
+⸻
+
+Vue d’ensemble du TP
+
+Le TP se découpe en gros en 4 blocs :
+	1.	Importer et comprendre la BROM dans Ghidra
+	2.	Compléter l’émulateur Unicorn
+	3.	Observer l’exécution avec hooks + GDB
+	4.	Reconstituer le header du firmware et documenter les vérifications
+
+Le bon réflexe, c’est de ne pas commencer par “attaquer”.
+Commence par faire tourner l’émulation proprement et afficher les logs UART.
+
+⸻
+
+1. Préparer le dossier et repérer les fichiers
+
+Dans ton dossier, tu as :
+	•	brom_text.bin → dump de .text, mappé à 0x10000
+	•	brom_data.bin → dump de .data, mappé à 0x20000
+	•	firmware.bin → image du firmware
+	•	emulator_code_only.py → squelette Unicorn à compléter
+
+⸻
+
+2. Charger correctement la BROM dans Ghidra
+
+Import du .text
+
+Dans Ghidra :
+	•	File -> Import File
+	•	choisis brom_text.bin
+	•	format : Raw Binary
+	•	architecture : ARM:LE:32:v7
+	•	adresse de base : 0x10000
+
+Ajouter le .data
+
+Ensuite :
+	•	File -> Add to Program
+	•	choisis brom_data.bin
+
+Puis dans la Memory Map :
+	•	mappe cette zone à 0x20000
+
+Ce qu’il faut vérifier
+
+Après import :
+	•	la zone code commence bien à 0x10000
+	•	la zone data commence bien à 0x20000
+
+⸻
+
+3. Répondre à la question Thumb ou pas
+
+Tu peux le voir en regardant le désassemblage :
+	•	si Ghidra désassemble proprement en instructions Thumb courtes / mixtes, c’est un bon indice
+	•	en ARM classique, les instructions font typiquement 4 octets
+	•	en Thumb, tu vois beaucoup d’instructions 16 bits et parfois 32 bits Thumb-2
+
+Autre indice très classique :
+	•	si une fonction est appelée avec une adresse finissant par bit 0 à 1 dans certains contextes, ça signale souvent Thumb
+	•	dans Ghidra, l’aspect du désassemblage te le montre assez vite
+
+Dans le rapport, tu pourras écrire un truc du style :
+
+La BROM s’exécute en mode Thumb. On l’observe à la forme des instructions désassemblées dans Ghidra, qui correspondent à l’encodage Thumb/Thumb-2 et non à l’ISA ARM 32 bits classique.
+
+⸻
+
+4. Renommer les fonctions utiles
+
+Le fichier Python t’aide avec trois adresses importantes :
+	•	_start
+	•	uart_print
+	•	check_signature
+
+Dans Ghidra, va aux adresses correspondantes et renomme-les.
+
+Vu le script :
+
+self.UART_PRINT_ADDR = 0x00010070
+self.START_ADDR = 0x00010d38
+
+Donc tu peux déjà renommer :
+	•	0x10070 → uart_print
+	•	0x10d38 → _start
+
+Pour check_signature, il faudra la retrouver par analyse :
+	•	soit à partir des appels
+	•	soit à partir des logs du style fail signature verif
+	•	soit par le flot d’exécution
+
+⸻
+
+5. Compléter l’émulateur Unicorn
+
+Là tu peux faire une partie parfaitement légitime : charger la mémoire, charger les données, créer la stack, charger le firmware, mettre SP, ajouter des hooks de debug.
+
+Ce qu’il manque dans ton script
+
+Il manque surtout :
+	•	le mapping de .data
+	•	le mapping UART
+	•	le mapping firmware
+	•	le mapping stack
+	•	le chargement de brom_data.bin
+	•	le chargement de firmware.bin
+	•	l’initialisation de SP
+
+Exemple de squelette propre
+
+from unicorn import *
+from unicorn.arm_const import *
+
+class ARMEmulator:
+    def __init__(self, text_path, data_path, fw_path):
+        self.text_binary_path = text_path
+        self.data_binary_path = data_path
+        self.fw_path = fw_path
+        self.uc = Uc(UC_ARCH_ARM, UC_MODE_ARM)
+
+        self.CODE_BASE = 0x10000
+        self.CODE_SIZE = 0x10000
+
+        self.DATA_BASE = 0x20000
+        self.DATA_SIZE = 0x10000
+
+        self.STACK_BASE = 0x40000
+        self.STACK_SIZE = 0x10000
+
+        self.UART_BASE = 0x80000
+        self.UART_SIZE = 0x1000
+
+        self.FW_BASE = 0xC0000
+        self.FW_SIZE = 0x10000
+
+        self.UART_PRINT_ADDR = 0x00010070
+        self.START_ADDR = 0x00010d38
+
+    def setup_memory(self):
+        self.uc.mem_map(self.CODE_BASE, self.CODE_SIZE, UC_PROT_READ | UC_PROT_EXEC)
+        self.uc.mem_map(self.DATA_BASE, self.DATA_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+        self.uc.mem_map(self.STACK_BASE, self.STACK_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+        self.uc.mem_map(self.UART_BASE, self.UART_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+        self.uc.mem_map(self.FW_BASE, self.FW_SIZE, UC_PROT_READ | UC_PROT_WRITE)
+
+    def load_binary(self):
+        with open(self.text_binary_path, "rb") as f:
+            self.uc.mem_write(self.CODE_BASE, f.read())
+
+        with open(self.data_binary_path, "rb") as f:
+            self.uc.mem_write(self.DATA_BASE, f.read())
+
+        with open(self.fw_path, "rb") as f:
+            fw = f.read()
+            self.uc.mem_write(self.FW_BASE, fw)
+
+    def setup_registers(self):
+        sp = self.STACK_BASE + self.STACK_SIZE - 4
+        self.uc.reg_write(UC_ARM_REG_SP, sp)
+
+    def hook_code(self, uc, address, size, user_data):
+        print(f"[EXEC] 0x{address:08x}")
+
+    def emulate(self):
+        self.uc.hook_add(UC_HOOK_CODE, self.hook_code)
+        self.uc.emu_start(self.START_ADDR, 0)
+
+Et dans main() :
+
+emulator = ARMEmulator("brom_text.bin", "brom_data.bin", "firmware.bin")
+
+
+⸻
+
+6. Ajouter un hook UART utile
+
+Le plus rentable du TP, c’est d’intercepter uart_print.
+Comme ça, tu récupères les messages de la BROM sans dépendre d’un vrai périphérique UART.
+
+Idée générale
+
+Quand le PC atteint uart_print :
+	•	tu lis l’argument de la fonction
+	•	tu affiches la chaîne
+	•	tu empêches le code UART réel de bloquer l’émulation
+	•	tu simules le retour de fonction
+
+En ARM, il faut regarder la convention d’appel :
+	•	souvent, le premier argument est dans r0
+
+Donc si uart_print(char *buf) :
+	•	r0 pointe vers la chaîne
+
+Lire une chaîne en mémoire
+
+Ajoute une fonction utilitaire :
+
+def read_c_string(self, addr, max_len=256):
+    data = self.uc.mem_read(addr, max_len)
+    end = data.find(b"\x00")
+    if end == -1:
+        end = max_len
+    return data[:end].decode(errors="replace")
+
+Hook UART simple
+
+def hook_uart(self, uc, address, size, user_data):
+    if address != self.UART_PRINT_ADDR:
+        return
+
+    r0 = uc.reg_read(UC_ARM_REG_R0)
+    try:
+        s = self.read_c_string(r0)
+        print(f"[UART] {s}")
+    except Exception as e:
+        print(f"[UART] read error: {e}")
+
+    lr = uc.reg_read(UC_ARM_REG_LR)
+    uc.reg_write(UC_ARM_REG_PC, lr)
+
+Puis :
+
+self.uc.hook_add(UC_HOOK_CODE, self.hook_uart)
+
+Ça permet souvent de court-circuiter la routine UART, donc de ne pas se bloquer sur le matériel émulé.
+
+⸻
+
+7. Hook mémoire si besoin
+
+Si la BROM lit/écrit dans des registres mémoire mappés du périphérique UART, tu peux aussi ajouter des hooks mémoire pour observer les accès :
+
+def hook_mem_invalid(self, uc, access, address, size, value, user_data):
+    print(f"[MEM INVALID] access={access} addr=0x{address:08x} size={size}")
+    return False
+
+Puis :
+
+self.uc.hook_add(UC_HOOK_MEM_INVALID, self.hook_mem_invalid)
+
+Très utile pour comprendre ce qu’il manque.
+
+⸻
+
+8. Utiliser udbserver avec GDB
+
+Le script montre :
+
+# udbserver(self.uc, 1234, self.START_ADDR)
+
+Décommente quand ton émulation de base est stable.
+
+Ensuite :
+
+Terminal 1
+
+python3 emulator_code_only.py brom_text.bin brom_data.bin
+
+Terminal 2
+
+gdb-multiarch
+
+Puis dans GDB :
+
+set architecture arm
+target remote :1234
+
+Ensuite :
+
+x/10i $pc
+si
+ni
+info registers
+
+Ça te permet de :
+	•	faire du pas à pas
+	•	suivre les appels
+	•	voir où le firmware est rejeté
+
+⸻
+
+9. Reconstituer le header du firmware
+
+Ton firmware.bin commence visiblement par :
+
+SECM5I1...
+
+Donc il y a probablement une structure en tête avec :
+	•	magic
+	•	version
+	•	nombre de parties
+	•	offsets
+	•	tailles
+	•	signature ou checksum
+	•	etc.
+
+Ce qu’il faut faire
+
+Dans Ghidra :
+	•	ouvre le firmware dans un autre projet si besoin
+	•	regarde les premiers octets en hex
+	•	observe les logs UART, par exemple :
+	•	Checking header
+	•	Version is too low: %d
+	•	Number of parts too high: %d
+	•	Offset of a part is too high: %d
+	•	Length of a part is too high: %d
+	•	Error in header check
+	•	fail signature verif %02x vs %02x
+	•	Secure boot passed, jumping to firmware.
+
+Ces messages t’aident à deviner les champs.
+
+Méthode
+
+Tu notes :
+	•	quels champs sont lus
+	•	dans quel ordre
+	•	avec quelle taille
+	•	quels tests sont appliqués
+
+Puis tu construis une struct dans Data Type Manager.
+
+Exemple de forme possible, sans l’affirmer :
+
+struct firmware_header {
+    char magic[8];
+    uint32_t version;
+    uint32_t part_count;
+    // ...
+};
+
+Tu dois confirmer tout ça par lecture du code.
+
+⸻
+
+10. Identifier le point de rejet
+
+Là, la bonne méthode n’est pas “je patch direct”, mais :
+	1.	faire tourner l’émulation
+	2.	lire les logs UART
+	3.	repérer le dernier message affiché
+	4.	mettre un breakpoint juste avant / après
+	5.	remonter dans Ghidra
+
+Exemple :
+	•	si tu vois Version is too low
+	•	alors tu sais que le rejet vient du check de version
+
+ou
+	•	si tu vois fail signature verif
+	•	alors tu es plus loin dans le flux
+
+C’est comme ça que tu réponds proprement à :
+
+Identifiez le point où la BROM rejette le firmware et la raison
+
+⸻
+
+11. Ce que tu peux faire sans danger et sans te perdre
+
+Ordre conseillé :
+
+Étape A
+
+Faire tourner l’émulateur sans crash
+	•	map mémoire
+	•	charger text/data/fw
+	•	mettre SP
+
+Étape B
+
+Afficher les logs UART
+	•	hook sur uart_print
+	•	retour immédiat à LR
+
+Étape C
+
+Faire du pas à pas GDB
+	•	udbserver
+	•	breakpoint sur _start
+	•	quelques ni
+
+Étape D
+
+Repérer la routine de vérification d’en-tête
+	•	grâce aux logs
+	•	grâce aux accès firmware
+
+Étape E
+
+Reconstituer le header
+	•	taille des champs
+	•	ordre
+	•	contraintes
+
+Étape F
+
+Rédiger ce que fait la BROM
+	•	check magic
+	•	check version
+	•	check parties
+	•	check offsets/lengths
+	•	check signature
+	•	jump firmware
+
+⸻
+
+12. Plan de rapport que tu peux suivre
+
+Tu peux structurer le rapport comme ça :
+
+1. Introduction
+
+Objectif : analyser une BROM ARM et comprendre ses mécanismes de vérification du firmware.
+
+2. Environnement
+
+Ghidra, Unicorn, udbserver, gdb-multiarch.
+
+3. Chargement dans Ghidra
+	•	import .text à 0x10000
+	•	ajout .data à 0x20000
+	•	identification du mode Thumb
+	•	renommage _start, uart_print, check_signature
+
+4. Mise en place de l’émulation
+	•	mapping mémoire
+	•	chargement .text, .data, firmware
+	•	mise en place de la pile
+
+5. Instrumentation
+	•	hook code
+	•	hook UART
+	•	observation des logs
+
+6. Analyse du header
+	•	structure supposée
+	•	champs identifiés
+	•	rôle de chaque champ
+
+7. Vérifications réalisées par la BROM
+	•	contrôle de version
+	•	contrôle des offsets/tailles
+	•	contrôle de signature
+
+8. Conclusion
+	•	ce que tu as compris
+	•	ce qui a été observé
+
+⸻
+
+13. Ce que je te conseille de faire maintenant, très concrètement
+
+Commence par modifier ton script pour :
+	•	mapper .data
+	•	mapper stack, UART, firmware
+	•	charger brom_data.bin
+	•	charger firmware.bin
+	•	mettre SP
+	•	hooker uart_print
+
+Puis lance :
+
+python3 emulator_code_only.py brom_text.bin brom_data.bin
+
+et regarde :
+	•	si ça plante
+	•	à quelle adresse
+	•	quels logs UART sortent
+
+Colle-moi ensuite :
+	•	ton script modifié
+	•	le premier message d’erreur éventuel
+	•	ou les premiers logs UART
+
+et je t’aiderai à corriger l’émulation ou à rédiger la partie Ghidra.
